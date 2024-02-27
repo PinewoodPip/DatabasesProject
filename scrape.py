@@ -3,38 +3,17 @@ from dataclasses import dataclass, field, asdict
 from bs4 import BeautifulSoup as Soup
 import re, json, os, time
 import urllib.parse
+from utils import *
 from Entities.Repository import *
 from Entities.RepositoryOwners import *
 from Entities.Trends import *
 
 COMMITS_REGEX = re.compile(r"([,\d]+) Commits$")
 CONTRIBUTIONS_REGEX = re.compile(r"([,\d]+)")
-URL_SUFFIX_TO_PARTS_REGEX = re.compile("\/?([^\/ ]+)\/([^\/ ]+)$")
 URL_RETURN_TO_REGEX = re.compile(r"\/login\?return_to=(.+)")
 OUTPUT_FILENAME = "output.json"
 
 TEST_URL = "https://github.com/Norbyte/ositools"
-
-def get_int(str, regex):
-    match:str = regex.search(str).groups()[0]
-    match = match.replace(",", "")
-    return int(match)
-
-def identifier(username, repo_name):
-    return f"{username}/{repo_name}"
-
-def unpack_url_suffix(suffix):
-    match = URL_SUFFIX_TO_PARTS_REGEX.search(suffix)
-    return match.groups()
-
-def parse_suffixed_number(string):
-    sizes_dict = {'b': 1, 'k': 1000, 'm': 1000000}
-    string = string.replace(",", "").lower()
-    for k, v in sizes_dict.items():
-        if string[-1] == k:
-            return int(float(string[:-1]) * v)
-
-    return int(string)
 
 class Scraper:
     def __init__(self):
