@@ -11,11 +11,10 @@ from Entities.Trends import *
 COMMITS_REGEX = re.compile(r"([,\d]+) Commits$")
 CONTRIBUTIONS_REGEX = re.compile(r"([,\d]+)")
 URL_RETURN_TO_REGEX = re.compile(r"\/login\?return_to=(.+)")
-OUTPUT_FILENAME = "output.json"
-
-TEST_URL = "https://github.com/Norbyte/ositools"
 
 class Scraper:
+    OUTPUT_FILENAME = "output.json"
+
     def __init__(self):
         self.repositories:dict[str, Repository] = {} # Visited repositories
         self.owners:dict[str, RepositoryOwner] = {} # Visited users
@@ -66,10 +65,18 @@ class Scraper:
         repos_in_main_language_str = span.contents[0]
         topic.main_language = repos_in_main_language_str
 
+        # Add all top repositories from the topic to the visit queue
+        articles = soup.findAll("article", class_="border rounded color-shadow-small color-bg-subtle my-4")
+        for article in articles:
+            header = article.find("h3")
+            repo_link = header.contents[3]
+            repo_identifier = repo_link.attrs["href"]
+            print("Queueing repo from topic", repo_identifier)
+            self.queue_repo(*unpack_url_suffix(repo_identifier))
+
         self.topics[topic_name] = topic
 
     def export(self):
-        with open("output.json", "w") as f:
         with open(Scraper.OUTPUT_FILENAME, "w") as f:
             output = {
                 "repositories": {k: v.dict() for k, v in self.repositories.items()},
