@@ -2,16 +2,18 @@ import requests
 from dataclasses import dataclass, field, asdict
 from bs4 import BeautifulSoup as Soup
 import re, json, os, time
+import urllib.parse
 
 COMMITS_REGEX = re.compile(r"([,\d]+) Commits$")
 CONTRIBUTIONS_REGEX = re.compile(r"([,\d]+)")
 URL_SUFFIX_TO_PARTS_REGEX = re.compile("\/?([^\/ ]+)\/([^\/ ]+)$")
+URL_RETURN_TO_REGEX = re.compile(r"\/login\?return_to=(.+)")
 OUTPUT_FILENAME = "output.json"
 
 TEST_URL = "https://github.com/Norbyte/ositools"
 
 def get_int(str, regex):
-    match:str = regex.match(str).groups()[0]
+    match:str = regex.search(str).groups()[0]
     match = match.replace(",", "")
     return int(match)
 
@@ -68,6 +70,12 @@ class User(RepositoryOwner):
 class Organization(RepositoryOwner):
     pass
 
+@dataclass
+class TrendingRepo(Exportable):
+    owner: str
+    repo: str
+    stars_today: int = 0
+
 class Scraper:
     def __init__(self):
         self.repositories:dict[str, Repository] = {} # Visited repositories
@@ -83,7 +91,6 @@ class Scraper:
             self.get_repo(username, repo_name)
 
         print("Queue empty; all repositories visited")
-        self.export()
 
     def export(self):
         with open("output.json", "w") as f:
@@ -120,8 +127,11 @@ class Scraper:
     def get_page(url) -> Soup:
         page = requests.get(url)
         soup = Soup(page.content, "html.parser")
+
+        # Save the file temporarily for easier debugging (ex. to check which info is in the HTML and which is loaded via JS instead)
         with open("test.html", "w") as f:
             f.write(page.text)
+
         return soup
     
     def get_owner(self, username) -> User:
@@ -189,10 +199,61 @@ class Scraper:
         self.queued_repositories.discard((username, repo_name))
 
         return repo
+    
+    def visit_trending(self):
+        # Empty string is for the "no language filter" option.
+        LANGUAGES = ["", "Lua", "JavaScript", "Java", "Python", "Kotlin", "C++", "C#", "C", "Rust", "TypeScript"]
+
+        all_entries = {}
+        for language in LANGUAGES:
+            all_entries[language] = self.extract_trending(language)
+
+        with open("trending.json", "w") as f:
+            output = {
+                "trending_per_language": {k: [x.dict() for x in v] for k, v in all_entries.items()},
+            }
+            json.dump(output, f, indent=2)
+
+    def extract_trending(self, language:str="") -> list[TrendingRepo]:
+        language = urllib.parse.quote(language)
+        soup = Scraper.get_page(f"https://github.com/trending/{language.lower()}?since=daily")
+        container = soup.find("div", {"data-hpc": True})
+
+        entries:list[TrendingRepo] = []
+
+        for article in container.findAll("article"):
+            entry:TrendingRepo = None
+            # Find the link that leads to the repository itself
+            for link in article.findAll("a"):
+                destination = link.attrs["href"]
+                destination = urllib.parse.unquote(destination)
+                if destination.startswith("/login"):
+                    destination = URL_RETURN_TO_REGEX.match(destination).groups()[0]
+
+                # A link with only 2 slashes (first and divider between user and repo) is a repo link; create the entry for it
+                if str.count(destination, "/") == 2:
+                    entry = TrendingRepo(*unpack_url_suffix(destination))
+                    break
+
+            # Parse amount of new stars
+            star_container = article.find("span", class_="d-inline-block float-sm-right", recursive=True)
+            star_text = star_container.contents[2]
+            entry.stars_today = get_int(star_text, CONTRIBUTIONS_REGEX) # These don't seem to have a suffix.
+
+            entries.append(entry)
+            prefix = f"[{language}] " if language != "" else ""
+            print(f"{prefix}{entry.owner}/{entry.repo}: {entry.stars_today} stars")
+
+        entries = sorted(entries, key=lambda x: x.stars_today, reverse=True)
+
+        print(len(entries), "trending repositories")
+
+        return entries
 
 if __name__ == "__main__":
     scraper = Scraper()
-    scraper.visit_repos([
-        "PinewoodPip/EpipEncounters",
-        # "https://github.com/SimpleMobileTools/Simple-Calendar"
-    ])
+    # scraper.visit_repos([
+    #     "PinewoodPip/EpipEncounters",
+    #     # "https://github.com/SimpleMobileTools/Simple-Calendar"
+    # ])
+    scraper.visit_trending()
