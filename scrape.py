@@ -3,6 +3,9 @@ from dataclasses import dataclass, field, asdict
 from bs4 import BeautifulSoup as Soup
 import re, json, os, time
 import urllib.parse
+from Entities.Repository import *
+from Entities.RepositoryOwners import *
+from Entities.Trends import *
 
 COMMITS_REGEX = re.compile(r"([,\d]+) Commits$")
 CONTRIBUTIONS_REGEX = re.compile(r"([,\d]+)")
@@ -32,49 +35,6 @@ def parse_suffixed_number(string):
             return int(float(string[:-1]) * v)
 
     return int(string)
-
-@dataclass
-class Exportable:
-    def serialize_type(obj):
-        serializable_types = set([dict, list])
-        serialized_obj = obj
-        if type(obj) in serializable_types:
-            serialized_obj = obj
-        elif type(obj) == set:
-            serialized_obj = list(obj)
-        elif obj is Exportable:
-            serialized_obj = Exportable.serialize_type(obj)
-        return serialized_obj
-    
-    def dict(self):
-        return {k: Exportable.serialize_type(v) for k, v in asdict(self).items()}
-
-@dataclass
-class Repository(Exportable):
-    user: str
-    repo: str
-    forks_amount: int = 0
-    commits_amount: int = 0
-    main_language: str = ""
-
-@dataclass
-class RepositoryOwner(Exportable):
-    username: str
-    repositories: set[str] = field(default_factory=set)
-
-@dataclass
-class User(RepositoryOwner):
-    contributions_last_year: int = 0
-
-@dataclass
-class Organization(RepositoryOwner):
-    pass
-
-@dataclass
-class TrendingRepo(Exportable):
-    owner: str
-    repo: str
-    stars_today: int = 0
 
 class Scraper:
     def __init__(self):
