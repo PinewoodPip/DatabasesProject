@@ -153,3 +153,4 @@ cython_debug/
 test.html
 output.json
 trending.json
+topics.json

@@ -20,6 +20,7 @@ class Scraper:
         self.repositories:dict[str, Repository] = {} # Visited repositories
         self.owners:dict[str, RepositoryOwner] = {} # Visited users
         self.queued_repositories = set() # Repositories queued for visit
+        self.topics:dict[str, Topic] = {}
 
     def visit_repos(self, repo_list:list[str]): # Expects a list of identifiers or URLs
         for identifier in repo_list:
@@ -31,8 +32,45 @@ class Scraper:
 
         print("Queue empty; all repositories visited")
 
+    def visit_topics(self):
+        TOPICS = ["nodejs", "javascript", "npm", "next", "react", "nextjs", "angular", "react-native", "vue", "mod"]
+
+        for topic in TOPICS:
+            self.visit_topic(topic)
+
+        print("All topics visited, saving...")
+        with open("topics.json", "w") as f:
+            output = {
+                "topics": {k: v.dict() for k, v in self.topics.items()},
+            }
+            json.dump(output, f, indent=2)
+
+    def visit_topic(self, topic_name:str):
+        soup = Scraper.get_page(f"https://github.com/topics/{topic_name}")
+        topic = Topic(topic_name)
+        print(f"Visiting topic", topic_name)
+
+        followers_svg = soup.find("svg", class_="octicon octicon-people mr-1")
+        if followers_svg: # "Small" topics can't seem to be followed? Ex. "mod"
+            followers = followers_svg.parent.contents[2]
+            topic.followers = find_suffixed_number(followers)
+
+        # Get amount of repositories
+        repositories_count_header = soup.find("h2", class_="h3 color-fg-muted")
+        topic.repositories = find_suffixed_number(repositories_count_header.contents[0])
+
+        # Get the main language of the topic
+        languages_dropdown = soup.find("details-menu", class_="select-menu-modal position-absolute")
+        main_language_entry = languages_dropdown.contents[3].contents[3] # First entry is "All [languages]", not useful.
+        span = main_language_entry.find("span", recursive=True)
+        repos_in_main_language_str = span.contents[0]
+        topic.main_language = repos_in_main_language_str
+
+        self.topics[topic_name] = topic
+
     def export(self):
         with open("output.json", "w") as f:
+        with open(Scraper.OUTPUT_FILENAME, "w") as f:
             output = {
                 "repositories": {k: v.dict() for k, v in self.repositories.items()},
                 "users": {k: v.dict() for k, v in self.owners.items()},
@@ -195,4 +233,5 @@ if __name__ == "__main__":
     #     "PinewoodPip/EpipEncounters",
     #     # "https://github.com/SimpleMobileTools/Simple-Calendar"
     # ])
-    scraper.visit_trending()
+    # scraper.visit_trending()
+    scraper.visit_topics()
