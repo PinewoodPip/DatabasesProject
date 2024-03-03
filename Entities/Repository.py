@@ -4,8 +4,14 @@ from .Entity import *
 
 @dataclass
 class Repository(Entity):
-    user: str
+    owner: str
     repo: str
+    main_language: str = ""
+
+@dataclass
+class RepositoryVisit(Visit):
+    owner: str = ""
+    repo: str = ""
     forks_amount: int = 0
     commits_amount: int = 0
-    main_language: str = ""
+    # We assume main_language will not change

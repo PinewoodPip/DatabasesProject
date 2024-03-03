@@ -9,8 +9,13 @@ class RepositoryOwner(Entity):
 
 @dataclass
 class User(RepositoryOwner):
-    contributions_last_year: int = 0
+    pass
 
 @dataclass
 class Organization(RepositoryOwner):
     pass
+
+@dataclass
+class UserVisit(Visit):
+    username: str = ""
+    contributions_last_year: int = 0

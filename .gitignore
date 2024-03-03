@@ -154,3 +154,5 @@ test.html
 output.json
 trending.json
 topics.json
+/visits
+persistence.json
