@@ -14,7 +14,10 @@ CONTRIBUTIONS_REGEX = re.compile(r"([,\d]+)")
 URL_RETURN_TO_REGEX = re.compile(r"\/login\?return_to=(.+)")
 
 class Scraper:
-    OUTPUT_FILENAME = "output.json"
+    # Empty string is for the "no language filter" option.
+    TRENDING_PAGE_LANGUAGES = ["", "Lua", "JavaScript", "Java", "Python", "Kotlin", "C++", "C#", "C", "Rust", "TypeScript"]
+    TOPICS_TO_VISIT = ["nodejs", "javascript", "npm", "next", "react", "nextjs", "angular", "react-native", "vue", "mod", "unity3d", "machine-learning", "deep-learning", "emulation"]
+    MAX_REPOSITORY_VISITS = 400
 
     def __init__(self):
         self.repositories:dict[str, Repository] = {} # Visited repositories
@@ -30,6 +33,10 @@ class Scraper:
         self.load_previous_data()
 
     def load_previous_data(self):
+        """
+            Loads data for previously-visited repositories and users,
+            to queue them for a visit in this session.
+        """
         if os.path.exists(os.getcwd() + "/persistence.json"):
             with open("persistence.json", "r") as f:
                 data = json.load(f)
@@ -41,38 +48,46 @@ class Scraper:
                     self.queue_owner(v["username"])
 
     def visit_owners(self):
+        """
+            Visits the pages of all queued users.
+        """
         while len(self.queued_owners) > 0:
             username = self.queued_owners.pop()
             self.extract_owner(username)
 
         print("Queue empty; all owners visited")
 
-    def visit_repos(self, repo_list:list[str]=None): # Expects a list of identifiers or URLs to queue beforehand
-        if repo_list:
-            for identifier in repo_list:
-                self.queue_repo(*unpack_url_suffix(identifier))
-
+    def visit_repos(self):
+        """
+            Visits all queued repositories.
+        """
+        visited_amount = 0
         while len(self.queued_repositories) > 0:
             username, repo_name = self.queued_repositories.pop()
             self.get_repo(username, repo_name)
             print(f"{len(self.queued_repositories)} repositories left in queue")
 
-        print("Queue empty; all repositories visited")
+            visited_amount += 1
+            if (visited_amount > Scraper.MAX_REPOSITORY_VISITS):
+                print("Max visits reached")
+                break
+
+        if len(self.queued_repositories) == 0:
+            print("Queue empty; all repositories visited")
 
     def visit_topics(self):
-        TOPICS = ["nodejs", "javascript", "npm", "next", "react", "nextjs", "angular", "react-native", "vue", "mod"]
-
-        for topic in TOPICS:
+        """
+            Visits all predefined topic pages.
+        """
+        for topic in Scraper.TOPICS_TO_VISIT:
             self.visit_topic(topic)
 
-        print("All topics visited, saving...")
-        with open("topics.json", "w") as f:
-            output = {
-                "visits": {k: v.dict() for k, v in self.topic_visits.items()},
-            }
-            json.dump(output, f, indent=2)
+        print("All topics visited")
 
     def visit_topic(self, topic_name:str):
+        """
+            Extracts information from a topic page.
+        """
         soup = Scraper.get_page(f"https://github.com/topics/{topic_name}")
         topic = Topic(topic_name)
         visit = TopicVisit(name=topic_name)
@@ -107,6 +122,9 @@ class Scraper:
         self.topic_visits[topic_name] = visit
 
     def export(self):
+        """
+            Saves the data of all entities and visits to files.
+        """
         with open("persistence.json", "w") as f:
             output = {
                 "repositories": {k: v.dict() for k, v in self.repositories.items()},
@@ -116,6 +134,8 @@ class Scraper:
             json.dump(output, f, indent=2)
 
         today_str = datetime.datetime.today().strftime('%Y-%m-%d')
+        if not os.path.exists("visits"):
+            os.makedirs("visits")
         with open(f"visits/visit_{today_str}.json", "w") as f:
             output = {
                 "repositories": {k: v.dict() for k, v in self.repository_visits.items()},
@@ -131,6 +151,9 @@ class Scraper:
         return username in self.owner_visits
     
     def get_repo(self, username:str, repo_name:str) -> Repository:
+        """
+            Returns the data for a repository, visiting it if previously unvisited.
+        """
         suffix = identifier(username, repo_name)
         if self.is_repo_visited(username, repo_name):
             return self.repositories[suffix]
@@ -166,6 +189,9 @@ class Scraper:
         return self.owners[username] if username in self.owners else self.extract_owner(username)
 
     def extract_owner(self, username) -> RepositoryOwner:
+        """
+            Extracts information from a user or organization page.
+        """
         if self.is_owner_visited(username): return
         soup = Scraper.get_page(f"https://github.com/{username}")
         contributions_container = soup.find("div", class_="js-yearly-contributions")
@@ -196,6 +222,9 @@ class Scraper:
         return user
 
     def extract_repository(self, username:str, repo_name:str) -> Repository:
+        """
+            Extracts information from a repository page.
+        """
         url_suffix = identifier(username, repo_name)
         url = f"https://github.com/{url_suffix}"
         print("Extracting", url)
@@ -215,7 +244,7 @@ class Scraper:
         attempts_remaining = 3
         while commits_url == None and attempts_remaining > 0:
             commits_url = soup.find("a", href=f"/{url_suffix}/commits/main/") or soup.find("a", href=f"/{url_suffix}/commits/master/")
-            if commits_url == None: # Fetching this element is for some reason inconsistent, likely because JS is involved while loading it. Refetching the page in such case does make it work, eventually.
+            if commits_url == None: # Fetching this element is for some reason inconsistent, likely because JS is involved while loading it. Refetching the page in such case does make it work, sometimes.
                 soup = Scraper.get_page(url)
                 time.sleep(1)
                 attempts_remaining -= 1
@@ -239,11 +268,11 @@ class Scraper:
         return repo
     
     def visit_trending(self):
-        # Empty string is for the "no language filter" option.
-        LANGUAGES = ["", "Lua", "JavaScript", "Java", "Python", "Kotlin", "C++", "C#", "C", "Rust", "TypeScript"]
-
+        """
+            Visits all predefined languages in the trending repositories page.
+        """
         all_entries = {}
-        for language in LANGUAGES:
+        for language in Scraper.TRENDING_PAGE_LANGUAGES:
             all_entries[language] = self.extract_trending(language)
 
         with open("trending.json", "w") as f:
@@ -253,6 +282,9 @@ class Scraper:
             json.dump(output, f, indent=2)
 
     def extract_trending(self, language:str="") -> list[TrendingRepo]:
+        """
+            Extracts information from a trending repositories page.
+        """
         language = urllib.parse.quote(language)
         soup = Scraper.get_page(f"https://github.com/trending/{language.lower()}?since=daily")
         print("Visiting trending", language)
