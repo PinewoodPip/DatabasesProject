@@ -7,6 +7,7 @@ class Repository(Entity):
     owner: str
     repo: str
     main_language: str = ""
+    license: str = ""
 
 @dataclass
 class RepositoryVisit(Visit):

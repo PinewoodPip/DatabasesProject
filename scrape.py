@@ -253,6 +253,13 @@ class Scraper:
         contributorsLabel = contributors.find("span")
         visit.contributors_amount = parse_suffixed_number(contributorsLabel.contents[0])
 
+        # Get license
+        license_svg = soup.find("svg", class_="octicon octicon-law mr-2")
+        if license_svg != None:
+            parent = license_svg.parent
+            license_str = parent.contents[2]
+            repo.license = str.strip(license_str)
+
         # Get commits count
         # This looks for the link to the commits, assuming the primary branch is "main" or "master"
         commits_url = None
@@ -289,6 +296,7 @@ class Scraper:
         # Remove the repository from the visit queue
         self.queued_repositories.discard((username, repo_name))
         self.repository_visits[identifier(username, repo_name)] = visit
+        self.repositories[identifier(username, repo_name)] = repo
 
         return repo
     
