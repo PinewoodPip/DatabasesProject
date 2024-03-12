@@ -14,4 +14,9 @@ class RepositoryVisit(Visit):
     repo: str = ""
     forks_amount: int = 0
     commits_amount: int = 0
+    stars_amount: int = 0
+    watchers_amount: int = 0
+    contributors_amount: int = 0
+    open_issues_amount: int = 0
+    closed_issues_amount: int = 0
     # We assume main_language will not change

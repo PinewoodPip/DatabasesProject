@@ -238,6 +238,21 @@ class Scraper:
         forksLabel = forks.find("span", class_="text-bold")
         visit.forks_amount = parse_suffixed_number(forksLabel.contents[0])
 
+        # Get stars amount
+        stars = soup.find(href=f"/{url_suffix}/stargazers")
+        starsLabel = stars.find("span", class_="text-bold")
+        visit.stars_amount = parse_suffixed_number(starsLabel.contents[0])
+
+        # Get watchers amount
+        watchers = soup.find(href=f"/{url_suffix}/watchers")
+        watchersLabel = watchers.find("strong")
+        visit.watchers_amount = parse_suffixed_number(watchersLabel.contents[0])
+
+        # Get contributors amount
+        contributors = soup.find(href=f"/{url_suffix}/graphs/contributors")
+        contributorsLabel = contributors.find("span")
+        visit.contributors_amount = parse_suffixed_number(contributorsLabel.contents[0])
+
         # Get commits count
         # This looks for the link to the commits, assuming the primary branch is "main" or "master"
         commits_url = None
@@ -260,6 +275,16 @@ class Scraper:
             languages_list = languages.parent.find("ul")
             main_language = languages_list.find("li").find("span", class_="color-fg-default text-bold mr-1", recursive=True).contents[0]
             repo.main_language = main_language
+
+        # Fetch open & closed issues amount
+        page = Scraper.get_page(f"https://github.com/{url_suffix}/issues")
+        div = page.find("div", class_="table-list-header-toggle states flex-auto pl-0")
+        if div != None:
+            issue_links = div.findAll("a")
+            open_issues = issue_links[0]
+            closed_issues = issue_links[1]
+            visit.open_issues_amount = get_int(open_issues.contents[2], CONTRIBUTIONS_REGEX)
+            visit.closed_issues_amount = get_int(closed_issues.contents[2], CONTRIBUTIONS_REGEX)
 
         # Remove the repository from the visit queue
         self.queued_repositories.discard((username, repo_name))
