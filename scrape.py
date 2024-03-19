@@ -22,8 +22,8 @@ class Scraper:
     def __init__(self):
         self.repositories:dict[str, Repository] = {} # Visited repositories
         self.owners:dict[str, RepositoryOwner] = {} # Visited users
-        self.queued_repositories = set() # Repositories queued for visit
-        self.queued_owners = set()
+        self.queued_repositories = [] # Repositories queued for visit
+        self.queued_owners = []
         self.topics:dict[str, Topic] = {}
 
         self.repository_visits:dict[str, RepositoryVisit] = {}
@@ -52,7 +52,7 @@ class Scraper:
             Visits the pages of all queued users.
         """
         while len(self.queued_owners) > 0:
-            username = self.queued_owners.pop()
+            username = self.queued_owners.pop(0)
             self.extract_owner(username)
 
         print("Queue empty; all owners visited")
@@ -63,7 +63,7 @@ class Scraper:
         """
         visited_amount = 0
         while len(self.queued_repositories) > 0:
-            username, repo_name = self.queued_repositories.pop()
+            username, repo_name = self.queued_repositories.pop(0)
             self.get_repo(username, repo_name)
             print(f"{len(self.queued_repositories)} repositories left in queue")
 
@@ -169,11 +169,11 @@ class Scraper:
     
     def queue_repo(self, username, repo):
         if not self.is_repo_visited(username, repo):
-            self.queued_repositories.add((username, repo))
+            self.queued_repositories.append((username, repo))
 
     def queue_owner(self, username):
         if not self.is_owner_visited(username):
-            self.queued_owners.add(username)
+            self.queued_owners.append(username)
     
     def get_page(url) -> Soup:
         page = requests.get(url)
@@ -249,9 +249,12 @@ class Scraper:
         visit.watchers_amount = parse_suffixed_number(watchersLabel.contents[0])
 
         # Get contributors amount
-        contributors = soup.find(href=f"/{url_suffix}/graphs/contributors")
-        contributorsLabel = contributors.find("span")
-        visit.contributors_amount = parse_suffixed_number(contributorsLabel.contents[0])
+        contributors = soup.find(href=f"/{url_suffix}/graphs/contributors", class_="Link--primary no-underline Link d-flex flex-items-center") # Some repos link to this in readme, so it's best to require class matching as well.
+        if contributors != None:
+            contributorsLabel = contributors.find("span")
+            visit.contributors_amount = parse_suffixed_number(contributorsLabel.contents[0])
+        else: # Pages without the contributors section are made by only the owner.
+            visit.contributors_amount = 1
 
         # Get license
         license_svg = soup.find("svg", class_="octicon octicon-law mr-2")
@@ -294,7 +297,10 @@ class Scraper:
             visit.closed_issues_amount = get_int(closed_issues.contents[2], CONTRIBUTIONS_REGEX)
 
         # Remove the repository from the visit queue
-        self.queued_repositories.discard((username, repo_name))
+        try:
+            self.queued_repositories.remove((username, repo_name))
+        except:
+            pass
         self.repository_visits[identifier(username, repo_name)] = visit
         self.repositories[identifier(username, repo_name)] = repo
 
