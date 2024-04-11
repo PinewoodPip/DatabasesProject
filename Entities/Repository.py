@@ -8,6 +8,10 @@ class Repository(Entity):
     repo: str
     main_language: str = ""
     license: str = ""
+    tags:list[str] = list
+    
+    def __post_init__(self):
+        self.tags = []
 
 @dataclass
 class RepositoryVisit(Visit):
@@ -21,3 +25,11 @@ class RepositoryVisit(Visit):
     open_issues_amount: int = 0
     closed_issues_amount: int = 0
     # We assume main_language will not change
+
+@dataclass
+class Commit(Entity):
+    sha:str = ""
+    commit_author:str = ""
+    repo_owner:str = ""
+    repo:str = ""
+    message:str = ""

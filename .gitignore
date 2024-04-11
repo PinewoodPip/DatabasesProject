@@ -156,3 +156,5 @@ trending.json
 topics.json
 /visits
 persistence.json
+api_token.txt
+/csv

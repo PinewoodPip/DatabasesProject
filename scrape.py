@@ -12,6 +12,27 @@ from Entities.Trends import *
 COMMITS_REGEX = re.compile(r"([,\d]+) Commits$")
 CONTRIBUTIONS_REGEX = re.compile(r"([,\d]+)")
 URL_RETURN_TO_REGEX = re.compile(r"\/login\?return_to=(.+)")
+API_TOKEN = None
+with open("api_token.txt", "r") as f: # Put your Personal Access Token in the file.
+    API_TOKEN = f.read()
+
+HEADERS = {
+    "Accept": "application/vnd.github+json",
+    "Authorization": "Bearer " + API_TOKEN,
+    "X-GitHub-Api-Version": "2022-11-28",
+}
+
+# Source: https://gist.github.com/codsane/25f0fd100b565b3fce03d4bbd7e7bf33
+# Fetching this number via HTML broke sometime in March 2024. 
+def commitCount(u, r):
+    req = requests.get('https://api.github.com/repos/{}/{}/commits?per_page=1'.format(u, r), headers={
+        "Accept": "application/vnd.github+json",
+        "Authorization": "Bearer " + API_TOKEN,
+        "X-GitHub-Api-Version": "2022-11-28",
+    })
+    s = req.links['last']['url']
+    s = re.search('\d+$', s).group()
+    return s
 
 class Scraper:
     # Empty string is for the "no language filter" option.
@@ -25,6 +46,7 @@ class Scraper:
         self.queued_repositories = [] # Repositories queued for visit
         self.queued_owners = []
         self.topics:dict[str, Topic] = {}
+        self.commits:dict[str, Commit] = {}
 
         self.repository_visits:dict[str, RepositoryVisit] = {}
         self.owner_visits:dict[str, UserVisit] = {}
@@ -130,6 +152,7 @@ class Scraper:
                 "repositories": {k: v.dict() for k, v in self.repositories.items()},
                 "owners": {k: v.dict() for k, v in self.owners.items()},
                 "topics": {k: v.dict() for k, v in self.topics.items()},
+                "commits": {k: v.dict() for k, v in self.commits.items()},
             }
             json.dump(output, f, indent=2)
 
@@ -233,20 +256,16 @@ class Scraper:
         repo = Repository(username, repo_name)
         visit = RepositoryVisit(owner=username, repo=repo_name)
         
+        req = requests.get(f"https://api.github.com/repos/{username}/{repo_name}", headers=HEADERS)
+        
         # Get forks amount
-        forks = soup.find(href=f"/{url_suffix}/forks")
-        forksLabel = forks.find("span", class_="text-bold")
-        visit.forks_amount = parse_suffixed_number(forksLabel.contents[0])
-
-        # Get stars amount
-        stars = soup.find(href=f"/{url_suffix}/stargazers")
-        starsLabel = stars.find("span", class_="text-bold")
-        visit.stars_amount = parse_suffixed_number(starsLabel.contents[0])
-
-        # Get watchers amount
-        watchers = soup.find(href=f"/{url_suffix}/watchers")
-        watchersLabel = watchers.find("strong")
-        visit.watchers_amount = parse_suffixed_number(watchersLabel.contents[0])
+        if req.status_code == 200:
+            json = req.json()
+            visit.forks_amount = json["forks_count"]
+            visit.watchers_amount = json["subscribers_count"]
+            visit.stars_amount = json["stargazers_count"]
+        else:
+            return # Skip the repo if the request fails (ex. 404 from deleted repos).
 
         # Get contributors amount
         contributors = soup.find(href=f"/{url_suffix}/graphs/contributors", class_="Link--primary no-underline Link d-flex flex-items-center") # Some repos link to this in readme, so it's best to require class matching as well.
@@ -263,21 +282,34 @@ class Scraper:
             license_str = parent.contents[2]
             repo.license = str.strip(license_str)
 
-        # Get commits count
-        # This looks for the link to the commits, assuming the primary branch is "main" or "master"
-        commits_url = None
-        attempts_remaining = 3
-        while commits_url == None and attempts_remaining > 0:
-            commits_url = soup.find("a", href=f"/{url_suffix}/commits/main/") or soup.find("a", href=f"/{url_suffix}/commits/master/")
-            if commits_url == None: # Fetching this element is for some reason inconsistent, likely because JS is involved while loading it. Refetching the page in such case does make it work, sometimes.
-                soup = Scraper.get_page(url)
-                time.sleep(1)
-                attempts_remaining -= 1
-        if commits_url != None:
-            commits = commits_url.find(string=lambda text: COMMITS_REGEX.match(text), recursive=True)
-            visit.commits_amount = get_int(commits.string, COMMITS_REGEX)
-        else:
-            visit.commits_amount = -1
+        # Get tags
+        tags = soup.findAll("a", class_="topic-tag topic-tag-link")
+        for tag in tags:
+            repo.tags.append(str.strip(tag.contents[0]))
+
+        # Get commit messages for newest commits
+        result = requests.get(f"https://api.github.com/repos/{username}/{repo_name}/commits?per_page=50", headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer " + API_TOKEN,
+            "X-GitHub-Api-Version": "2022-11-28",
+        })
+        if result.status_code == 200:
+            json = result.json()
+            for commit in json:
+                entry = Commit()
+                sha = commit["sha"]
+                msg = commit["commit"]["message"]
+                author = commit["author"]["login"] if commit["author"] != None and "login" in commit["author"] else ""
+
+                entry.sha = sha
+                entry.commit_author = author
+                entry.repo_owner = repo.owner
+                entry.repo = repo.repo
+                entry.message = msg
+
+                self.commits[sha] = entry
+
+        visit.commits_amount = int(commitCount(username, repo_name))
 
         # Get primary language
         languages = soup.find("h2", class_="h4 mb-3", string="Languages")
