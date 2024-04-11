@@ -39,6 +39,7 @@ class Scraper:
     TRENDING_PAGE_LANGUAGES = ["", "Lua", "JavaScript", "Java", "Python", "Kotlin", "C++", "C#", "C", "Rust", "TypeScript"]
     TOPICS_TO_VISIT = ["nodejs", "javascript", "npm", "next", "react", "nextjs", "angular", "react-native", "vue", "mod", "unity3d", "machine-learning", "deep-learning", "emulation"]
     MAX_REPOSITORY_VISITS = 400
+    REPOSITORY_VISIT_EXPORT_INTERVAL = 50 # Determines every how many repository visits scraping data will be saved
 
     def __init__(self):
         self.repositories:dict[str, Repository] = {} # Visited repositories
@@ -94,6 +95,8 @@ class Scraper:
             if (visited_amount > Scraper.MAX_REPOSITORY_VISITS):
                 print("Max visits reached")
                 break
+            elif visited_amount % Scraper.REPOSITORY_VISIT_EXPORT_INTERVAL == 0:
+                self.export()
 
         if len(self.queued_repositories) == 0:
             print("Queue empty; all repositories visited")
