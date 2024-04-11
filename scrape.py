@@ -225,16 +225,17 @@ class Scraper:
 
         # Get popular/pinned repositories
         container = soup.find("div", class_="js-pinned-items-reorder-container")
-        form = container.find("ol", recursive=True)
-        for child in form.findAll("a", recursive=True):
-            href = child.attrs["href"]
-            match = URL_SUFFIX_TO_PARTS_REGEX.match(href)
-            if match: # Ignore links like "Repo/User/stargazers" or "Repo/User/forks"
-                username, repo = match.groups()
-                print("Found pinned/popular repo in user page:", username, repo)
+        if container != None:
+            form = container.find("ol", recursive=True)
+            for child in form.findAll("a", recursive=True):
+                href = child.attrs["href"]
+                match = URL_SUFFIX_TO_PARTS_REGEX.match(href)
+                if match: # Ignore links like "Repo/User/stargazers" or "Repo/User/forks"
+                    username, repo = match.groups()
+                    print("Found pinned/popular repo in user page:", username, repo)
 
-                # Queue that repo to be visited
-                self.queue_repo(username, repo)
+                    # Queue that repo to be visited
+                    self.queue_repo(username, repo)
 
         # Get yearly contributions
         if contributions_container != None:
@@ -375,8 +376,11 @@ class Scraper:
 
             # Parse amount of new stars
             star_container = article.find("span", class_="d-inline-block float-sm-right", recursive=True)
-            star_text = star_container.contents[2]
-            entry.stars_today = get_int(star_text, CONTRIBUTIONS_REGEX) # These don't seem to have a suffix.
+            if star_container != None: # Somehow, repos can make it to this page with 0 stars in a day.
+                star_text = star_container.contents[2]
+                entry.stars_today = get_int(star_text, CONTRIBUTIONS_REGEX) # These don't seem to have a suffix.
+            else:
+                entry.stars_today = 0
 
             entries.append(entry)
             prefix = f"[{language}] " if language != "" else ""
