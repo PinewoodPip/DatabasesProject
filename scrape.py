@@ -47,6 +47,7 @@ class Scraper:
         self.queued_owners = []
         self.topics:dict[str, Topic] = {}
         self.commits:dict[str, Commit] = {}
+        self.trending = {}
 
         self.repository_visits:dict[str, RepositoryVisit] = {}
         self.owner_visits:dict[str, UserVisit] = {}
@@ -153,6 +154,7 @@ class Scraper:
                 "owners": {k: v.dict() for k, v in self.owners.items()},
                 "topics": {k: v.dict() for k, v in self.topics.items()},
                 "commits": {k: v.dict() for k, v in self.commits.items()},
+                "trending_per_language": {k: [x.dict() for x in v] for k, v in self.trending.items()},
             }
             json.dump(output, f, indent=2)
 
@@ -342,15 +344,8 @@ class Scraper:
         """
             Visits all predefined languages in the trending repositories page.
         """
-        all_entries = {}
         for language in Scraper.TRENDING_PAGE_LANGUAGES:
-            all_entries[language] = self.extract_trending(language)
-
-        with open("trending.json", "w") as f:
-            output = {
-                "trending_per_language": {k: [x.dict() for x in v] for k, v in all_entries.items()},
-            }
-            json.dump(output, f, indent=2)
+            self.trending[language] = self.extract_trending(language)
 
     def extract_trending(self, language:str="") -> list[TrendingRepo]:
         """
