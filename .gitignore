@@ -158,3 +158,5 @@ topics.json
 persistence.json
 api_token.txt
 /csv
+.vscode/settings.json
+JupyterNotebook/repositories.json
