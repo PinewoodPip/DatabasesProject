@@ -140,10 +140,13 @@ class Scraper:
 
         # Get the main language of the topic
         languages_dropdown = soup.find("details-menu", class_="select-menu-modal position-absolute")
-        main_language_entry = languages_dropdown.contents[3].contents[3] # First entry is "All [languages]", not useful.
-        span = main_language_entry.find("span", recursive=True)
-        repos_in_main_language_str = span.contents[0]
-        topic.main_language = repos_in_main_language_str
+        if languages_dropdown != None:
+            main_language_entry = languages_dropdown.contents[3].contents[3] # First entry is "All [languages]", not useful.
+            span = main_language_entry.find("span", recursive=True)
+            repos_in_main_language_str = span.contents[0]
+            topic.main_language = repos_in_main_language_str
+        else:
+            topic.main_language = ""
 
         # Add all top repositories from the topic to the visit queue
         articles = soup.findAll("article", class_="border rounded color-shadow-small color-bg-subtle my-4")
