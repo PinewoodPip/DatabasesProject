@@ -65,10 +65,11 @@ class Scraper:
             with open("persistence.json", "r") as f:
                 data = json.load(f)
                 for k, v in data["repositories"].items():
-                    self.repositories[k] = Repository(v["owner"], v["repo"], v["main_language"])
+                    repo = Repository(v["owner"], v["repo"], v["main_language"], v["license"], v["tags"], v["description"])
+                    self.repositories[k] = repo
                     self.queue_repo(v["owner"], v["repo"])
                 for k, v in data["owners"].items():
-                    self.owners[k] = RepositoryOwner(v["username"], set(v["repositories"]))
+                    self.owners[k] = RepositoryOwner(v["username"], v["avatar_url"], set(v["repositories"]))
                     self.queue_owner(v["username"])
 
     def visit_owners(self):
@@ -187,11 +188,12 @@ class Scraper:
             return self.repositories[suffix]
         
         repo = self.extract_repository(username, repo_name)
-        self.repositories[suffix] = repo
+        if repo != None:
+            self.repositories[suffix] = repo
 
-        # Add the repo to the user
-        user = self.get_owner(username)
-        user.repositories.add(repo_name)
+            # Add the repo to the user
+            user = self.get_owner(username)
+            user.repositories.add(repo_name)
 
         return repo
     
@@ -222,9 +224,13 @@ class Scraper:
         """
         if self.is_owner_visited(username): return
         soup = Scraper.get_page(f"https://github.com/{username}")
-        contributions_container = soup.find("div", class_="js-yearly-contributions")
-        user = User(username) if contributions_container != None else Organization(username)
+        user = User(username)
         visit = UserVisit(username=username)
+        
+        req = requests.get(f"https://api.github.com/users/{username}", headers=HEADERS)
+        if req.status_code == 200:
+            json = req.json()
+            user.avatar_url = json["avatar_url"]
 
         # Get popular/pinned repositories
         container = soup.find("div", class_="js-pinned-items-reorder-container")
@@ -241,9 +247,12 @@ class Scraper:
                     self.queue_repo(username, repo)
 
         # Get yearly contributions
-        if contributions_container != None:
-            header = contributions_container.find("h2", class_="f4 text-normal mb-2", recursive=True)
+        soup = Scraper.get_page(f"https://github.com/users/{username}/contributions")
+        if soup != None and soup.contents[0] != "Not Found":
+            header = soup.find("h2")
             visit.contributions_last_year = parse_suffixed_number(CONTRIBUTIONS_REGEX.search(header.contents[0]).group())
+        else:
+            visit.contributions_last_year = -1
 
         self.owners[username] = user
         self.owner_visits[username] = visit
@@ -270,6 +279,7 @@ class Scraper:
             visit.forks_amount = json["forks_count"]
             visit.watchers_amount = json["subscribers_count"]
             visit.stars_amount = json["stargazers_count"]
+            repo.description = json["description"]
         else:
             return # Skip the repo if the request fails (ex. 404 from deleted repos).
 
@@ -333,6 +343,16 @@ class Scraper:
             closed_issues = issue_links[1]
             visit.open_issues_amount = get_int(open_issues.contents[2], CONTRIBUTIONS_REGEX)
             visit.closed_issues_amount = get_int(closed_issues.contents[2], CONTRIBUTIONS_REGEX)
+
+        # Fetch open & closed PRs amount
+        page = Scraper.get_page(f"https://github.com/{url_suffix}/pulls")
+        div = page.find("div", class_="table-list-header-toggle states flex-auto pl-0")
+        if div != None:
+            issue_links = div.findAll("a")
+            open_prs = issue_links[0]
+            closed_prs = issue_links[1]
+            visit.open_pull_requests_amount = get_int(open_prs.contents[2], CONTRIBUTIONS_REGEX)
+            visit.closed_pull_requests_amount = get_int(closed_prs.contents[2], CONTRIBUTIONS_REGEX)
 
         # Remove the repository from the visit queue
         try:

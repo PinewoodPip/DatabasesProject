@@ -5,6 +5,7 @@ from .Entity import *
 @dataclass
 class RepositoryOwner(Entity):
     username: str
+    avatar_url: str = ""
     repositories: set[str] = field(default_factory=set)
 
 @dataclass

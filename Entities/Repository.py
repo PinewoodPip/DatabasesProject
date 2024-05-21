@@ -8,10 +8,11 @@ class Repository(Entity):
     repo: str
     main_language: str = ""
     license: str = ""
-    tags:list[str] = list
+    tags:list[str] = None
+    description: str = ""
     
     def __post_init__(self):
-        self.tags = []
+        self.tags = [] if self.tags == None else self.tags
 
 @dataclass
 class RepositoryVisit(Visit):
@@ -24,6 +25,8 @@ class RepositoryVisit(Visit):
     contributors_amount: int = 0
     open_issues_amount: int = 0
     closed_issues_amount: int = 0
+    open_pull_requests_amount: int = -1
+    closed_pull_requests_amount: int = -1
     # We assume main_language will not change
 
 @dataclass
