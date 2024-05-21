@@ -36,9 +36,9 @@ def commitCount(u, r):
 
 class Scraper:
     # Empty string is for the "no language filter" option.
-    TRENDING_PAGE_LANGUAGES = ["", "Lua", "JavaScript", "Java", "Python", "Kotlin", "C++", "C#", "C", "Rust", "TypeScript"]
-    TOPICS_TO_VISIT = ["nodejs", "javascript", "npm", "next", "react", "nextjs", "angular", "react-native", "vue", "mod", "unity3d", "machine-learning", "deep-learning", "emulation"]
-    MAX_REPOSITORY_VISITS = 400
+    TRENDING_PAGE_LANGUAGES = ["", "Lua", "JavaScript", "Java", "Python", "Kotlin", "C++", "C#", "C", "Rust", "TypeScript", "Clojure", "COBOL", "CoffeeScript", "CSS", "Cuda", "Cython", "Dockerfile", "ActionScript", "EJS", "Fortran", "Game Maker Language", "GDScript", "GLSL", "Gnuplot", "Go", "Gradle", "Groovy", "Haskell", "HTML", "HTTP", "Jupyter Notebook", "MATLAB", "Maven POM", "Nginx", "Ninja", "NumPy", "Papyrus", "Pascal", "PHP", "Perl", "Polar", "Prolog", "Qt Script", "R", "Ren'Py", "Sass", "Scala", "SCSS", "UnrealScript", "VHDL", "Visual Basic .Net", "Vue", "WebAssembly", "WGSL", "Witcher Script"]
+    DEFAULT_TOPICS_TO_VISIT = ["nodejs", "javascript", "npm", "next", "react", "nextjs", "angular", "react-native", "vue", "mod", "unity3d", "machine-learning", "deep-learning", "emulation"]
+    MAX_REPOSITORY_VISITS = 6000
     REPOSITORY_VISIT_EXPORT_INTERVAL = 50 # Determines every how many repository visits scraping data will be saved
 
     def __init__(self):
@@ -54,6 +54,8 @@ class Scraper:
         self.owner_visits:dict[str, UserVisit] = {}
         self.topic_visits:dict[str, Topic] = {}
 
+        self.topics_to_visit = [topic for topic in Scraper.DEFAULT_TOPICS_TO_VISIT]
+
         self.load_previous_data()
 
     def load_previous_data(self):
@@ -68,6 +70,13 @@ class Scraper:
                     repo = Repository(v["owner"], v["repo"], v["main_language"], v["license"], v["tags"], v["description"])
                     self.repositories[k] = repo
                     self.queue_repo(v["owner"], v["repo"])
+
+                    # Queue tags from previously visited repos
+                    for topic in repo.tags:
+                        if topic not in self.topics_to_visit and len(self.topics_to_visit) < 100:
+                            print("Adding topic from repo", topic)
+                            self.topics_to_visit.append(topic)
+                    Scraper.MAX_REPOSITORY_VISITS += 1
                 for k, v in data["owners"].items():
                     self.owners[k] = RepositoryOwner(v["username"], v["avatar_url"], set(v["repositories"]))
                     self.queue_owner(v["username"])
@@ -106,7 +115,7 @@ class Scraper:
         """
             Visits all predefined topic pages.
         """
-        for topic in Scraper.TOPICS_TO_VISIT:
+        for topic in self.topics_to_visit:
             self.visit_topic(topic)
 
         print("All topics visited")
