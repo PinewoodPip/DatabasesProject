@@ -375,6 +375,7 @@ class Scraper:
                 if str.count(destination, "/") == 2:
                     username, repo_name = unpack_url_suffix(destination)
                     entry = TrendingRepo(owner=username, repo=repo_name)
+                    self.queue_repo(username, repo_name)
                     break
 
             # Parse amount of new stars
