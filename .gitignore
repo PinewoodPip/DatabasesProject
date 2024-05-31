@@ -160,3 +160,4 @@ api_token.txt
 /csv
 .vscode/settings.json
 JupyterNotebook/repositories.json
+JupyterNotebook/repositories_output.json
