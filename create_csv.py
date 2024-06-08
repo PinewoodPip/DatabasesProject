@@ -102,7 +102,7 @@ create_csv("RepositoryVisits.csv", ["date", "owner", "name", "forks", "commits",
 trends_json = json.load(open("trending.json", "r"))
 for lang,lang_trends in trends_json["trending_per_language"].items():
     trends.extend(lang_trends)
-create_csv("TrendVisits.csv", ["date", "repo_name", "owner", "starsToday"], trends, ["visit_timestamp", "owner", "repo", "stars_today"])
+create_csv("TrendVisits.csv", ["date", "repo_name", "owner", "starsToday"], trends, ["visit_timestamp", "repo", "owner", "stars_today"])
 
 # TopicVisits
 create_csv("TopicVisits.csv", ["date", "name", "repositories", "followers"], topics, ["visit_timestamp", "name", "repositories", "followers"])
