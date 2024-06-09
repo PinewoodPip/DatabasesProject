@@ -159,5 +159,5 @@ persistence.json
 api_token.txt
 Scraper/csv
 .vscode/settings.json
-JupyterNotebook/repositories.json
-JupyterNotebook/repositories_output.json
+Analysis/repositories.json
+Analysis/repositories_output.json
